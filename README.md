@@ -77,7 +77,7 @@ cmake --build build -j 8
 #define ROBOT_BOARD_SEL  ROBOT_BOARD_UPPER   /* 上板 */
 ```
 
-两个配置都是编过的（下位机 178 640 B / 上板 178 680 B），`Core/`、`Drivers/`、
+两个配置都是编过的（下位机 **180 800 B** / 上板 **183 056 B**），`Core/`、`Drivers/`、
 `Middlewares/`（含 CMSIS-DSP 预编译库 `libarm_cortexM7lfsp_math.a`）全在树内，无外部依赖、无绝对路径。
 
 > ⚠️ **必须放在纯 ASCII 路径下构建**（如 `D:\opensource\`）。路径带中文时 `mingw32-make` 会报
@@ -172,6 +172,7 @@ VOFA 风格波形、电机/舵轮/底盘子窗口、CSV/HEX/Markdown 导出。
 | 调试输出 | 只有**上板**直发 UART（`DEBUG_UART_TX_ENABLE = ROBOT_UPPER_ONLY`）：**UART7**（PE8/PE7）+ **USART10**（PE3/PE2，与光电找零互斥），**921600** 8N1；下位机的遥测经 485 分片上送、由上板转出 |
 | 调试遥测 | `0x5A`：`0x0102` 电机 PID 帧（100 Hz）/ `0x0104` 舵向帧（50 Hz，含 `heading_error`、实际 ω）/ JSON（20 Hz） |
 | 在线调参 | `0x5C`（CRC-CCITT 反射版 `0x8408`，初值 0） |
+| 裁判系统 | **USART1**（PA9/PA10）**115200** 8N1，CRC8(0x31)/CRC16(CCITT) 解析；**只在上板接**，下板靠 485 的 `Reserved` 字节拿功率上限 |
 | 上位机/裁判/miniPC | `0xA5`（与 485 链路同帧格式） |
 
 帧结构、字段偏移见 [User/通信协议.md](LGRobotSystem/User/通信协议.md)；
@@ -196,12 +197,15 @@ User/
 
 ### 一块代码两块板
 
-`#if ROBOT_UPPER_ONLY` / `#ifndef ROBOT_UPPER_ONLY` 一共 16 处，集中在：
+`#if ROBOT_UPPER_ONLY` / `#ifndef ROBOT_UPPER_ONLY` 共 19 处（另有 2 处只在文档里），集中在：
 
 ```text
-App/cmd/cmd_task.cpp   107 / 305      下板: 命令来自 485(下板不接遥控器)
-App/cmd/cmd_485.cpp    57/82/324/372/411/511/533   上板: 发命令;下板: 收命令
-App/debug/debug_task.cpp  31/397/1171/1279         UART 直发只在上板开
+App/cmd/cmd_task.cpp        命令来源(下板: 从 485 来)
+App/cmd/cmd_485.cpp         上板发命令 / 下板收命令 + 回反馈
+App/debug/debug_task.cpp    UART 直发只在上板开(DEBUG_UART_TX_ENABLE)
+App/motor_task/motor_task.cpp  DM_MOTOR_N(上板 1 / 下板 0) ⇒ 4310 只在 CAN2 上建对象
+App/robot/robot.cpp         上板跳过 Chassis_Init() / 只在上板初始化裁判
+App/robot/robot_def.h        ROBOT_UPPER_ONLY 派生 + 电机分配表
 ```
 
 其余模块两块板共用同一套框架（`Bsp`/`Device`/`Algorithm`/`msg_center` 完全一样），
