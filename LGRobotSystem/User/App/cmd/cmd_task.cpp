@@ -105,7 +105,7 @@ void Cmd_Task(void)
     bool ref_ok;
 
 #ifndef ROBOT_UPPER_ONLY
-    /* 下 MCU 不接遥控器: CAN3 指令是唯一驾驶来源。
+    /* 下 MCU 不接遥控器:485 链路(USART2,上板发)是唯一驾驶来源。
        裁判系统也只接在上板 USART1 ⇒ 功率上限等从 485 拿 */
     {
         float cvx, cvy, cw; uint8_t cmode;

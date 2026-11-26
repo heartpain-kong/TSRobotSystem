@@ -259,7 +259,7 @@ App/cmd/cmd_task.cpp、Device/comMCU/cmd_485.cpp、App/debug/debug_task.cpp   �
 | [Device/comMCU/cmd_485.md](LGRobotSystem/User/Device/comMCU/cmd_485.md) | 上下链路 500 Hz 一发一回 |
 | [App/debug/debug_task.md](LGRobotSystem/User/App/debug/debug_task.md) | 遥测帧与调参命令 |
 | [Device/motor/电机使用说明.md](LGRobotSystem/User/Device/motor/电机使用说明.md) | DJ/DM/LZ/YS 四品牌单位与命令位 |
-| [algorithm/RobotSlutionCalculation/README.md](LGRobotSystem/User/algorithm/RobotSlutionCalculation/README.md) | 底盘解算独立模块 |
+| [algorithm/RobotSlutionCalculation/RobotSlutionCalculation.md](LGRobotSystem/User/algorithm/RobotSlutionCalculation/RobotSlutionCalculation.md) | 底盘解算独立模块（纯数学层，与 App 实际解算的关系）|
 | [文档/标定与联调记录.md](文档/标定与联调记录.md) | 6020 零点、toe-in、标定的实测数据 |
 | [调试助手/README.md](调试助手/README.md) | 调试助手全功能说明 |
 
