@@ -46,7 +46,7 @@ STM32H723 舵轮机器人：**同一份代码烧两块板**，`robot_def.h` 里�
 
 ```text
 开源/
-├─ LGRobotSystem/      固件工程(下位机 / 上板 同一份,robot_def.h 切换)
+├─ TSRobotSystem/      固件工程(下位机 / 上板 同一份,robot_def.h 切换)
 │  ├─ User/App/robot/robot_def.h   ← ★ 换车 / 换板 / 调参只改这里
 │  ├─ User/algorithm/RobotSlutionCalculation/  底盘解算(独立模块)
 │  └─ tools/                      串口抓数据 / 阶跃测试 / 波形解析脚本
@@ -64,10 +64,10 @@ STM32H723 舵轮机器人：**同一份代码烧两块板**，`robot_def.h` 里�
 `CMake 4.3 or higher is required`）。
 
 ```powershell
-cd 开源\LGRobotSystem
+cd 开源\TSRobotSystem
 cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j 8
-# 产物: build/LGRobotSystem.elf / .hex / .bin
+# 产物: build/TSRobotSystem.elf / .hex / .bin
 ```
 
 **编哪块板**：打开 `User/App/robot/robot_def.h`，改一行
@@ -87,7 +87,7 @@ cmake --build build -j 8
 ### 2.2 烧录
 
 ```powershell
-openocd -f daplink.cfg -c "program build/LGRobotSystem.elf verify reset exit"
+openocd -f daplink.cfg -c "program build/TSRobotSystem.elf verify reset exit"
 ```
 
 * `daplink.cfg` = CMSIS-DAP（`adapter driver cmsis-dap`），**推荐**；
@@ -160,7 +160,7 @@ VOFA 风格波形、电机/舵轮/底盘子窗口、CSV/HEX/Markdown 导出。
 ```
 
 > 控制环参数（PID、航向修正权、放行门限）仍留在各模块里，改动位置在
-> [App/chassis/chassis_task.md](LGRobotSystem/User/App/chassis/chassis_task.md) 等文档中标注。
+> [App/chassis/chassis_task.md](TSRobotSystem/User/App/chassis/chassis_task.md) 等文档中标注。
 
 ---
 
@@ -175,8 +175,8 @@ VOFA 风格波形、电机/舵轮/底盘子窗口、CSV/HEX/Markdown 导出。
 | 裁判系统 | **USART1**（PA9/PA10）**115200** 8N1，CRC8(0x31)/CRC16(CCITT) 解析；**只在上板接**，下板靠 485 的 `Reserved` 字节拿功率上限 |
 | 上位机/裁判/miniPC | `0xA5`（与 485 链路同帧格式） |
 
-帧结构、字段偏移见 [User/通信协议.md](LGRobotSystem/User/通信协议.md)；
-485 帧的 channel/mode 位定义见 [Device/comMCU/cmd_485.md](LGRobotSystem/User/Device/comMCU/cmd_485.md)。
+帧结构、字段偏移见 [User/通信协议.md](TSRobotSystem/User/通信协议.md)；
+485 帧的 channel/mode 位定义见 [Device/comMCU/cmd_485.md](TSRobotSystem/User/Device/comMCU/cmd_485.md)。
 
 ---
 
@@ -186,14 +186,54 @@ VOFA 风格波形、电机/舵轮/底盘子窗口、CSV/HEX/Markdown 导出。
 User/
 ├─ App/        robot(决策/模式/门控) chassis(D2Q2 解算) gimbal cmd(遥控+485) motor_task
 │              debug(遥测/调参) imu error_task(日志) msg_center(话题) highRise
-├─ Algorithm/  chassis_control(舵轮解算) RobotSlutionCalculation PID Kalman mahony Slope math_support
+├─ Algorithm/  chassis_control(舵轮解算) RobotSlutionCalculation PID Kalman math_support crc
 ├─ Bsp/        fdcan uart spi ospi adc pwm rc power dwt timestamp flash fault
-└─ Device/     motor(DJ/DM/LZ/YS + MIT) bmi088 remote referee minipc log ws2812 buzzer
+└─ Device/     motor(DJ/DM/LZ/YS + MIT) bmi088 remote referee minipc comMCU(485) log ws2812 buzzer
 ```
 
-分层铁律（见 [代码架构框架.md](LGRobotSystem/User/代码架构框架.md)）：
+分层铁律（见 [代码架构框架.md](TSRobotSystem/User/代码架构框架.md)）：
 `Bsp` 不许出现"底盘/云台"这类业务词；`Device` 只管协议/寄存器；`App` 只管业务；
 电机单位统一关节侧 `rad / rad·s⁻¹ / N·m`，rpm 换算只在一个地方做。
+
+### 运行时：FreeRTOS V10.6.2 + CMSIS-RTOS2
+
+内核 **FreeRTOS Kernel V10.6.2**，应用层走 CubeMX 的 **CMSIS-RTOS2** 封装（`osThreadNew` / `osDelayUntil`），
+配置在 `Core/Inc/FreeRTOSConfig.h`，任务参数在 `User/App/robot/robot_def.h`。
+
+| 任务 | 周期 | 优先级 | 栈 (B) | 干什么 |
+|---|---|---|---|---|
+| `motor` | **1 kHz** | High | 2048 | 电机目标 + 各电机闭环 + 按自身频率发 CAN 帧 |
+| `imu` | **1 kHz** | High | 2048 | BMI088 读数 → 四元数 EKF → IMU 话题 |
+| `cmd` | 500 Hz | Normal | 3072 | 遥控/裁判/上位机/485 → 统一 `Cmd_Data_t` |
+| `chassis` | 500 Hz | Normal | 2048 | D2Q2 解算 + 舵向/驱动目标 + 里程计 + 6020 保持 + 找零 |
+| `gimbal` | 500 Hz | Normal | 2048 | 云台 yaw/pitch 关节角 + 前馈（上板 pitch = DM4310）|
+| `highRise` | 500 Hz | Normal | 2048 | 摩擦轮 / 拨弹 |
+| `robot` | 500 Hz | Normal | 2048 | 子系统服务 + 决策层门控 |
+| `error` | 100 Hz | Low | **4096** | 错误级别、蜂鸣器/RGB、关键数据落盘（`snprintf` 吃栈）|
+| `debug` | 100 Hz | Low | **4096** | `0x5A` 遥测 / JSON / `0x5C` 调参回包 |
+
+**内核配置要点**：tick **1000 Hz**（1 tick = 1 ms）· 优先级 56 级（`High=40/Normal=24/Low=8`）·
+`heap_4` **32 KB**（任务栈全从这里分，当前约用 23 KB）· 栈溢出检查 = 2 · `RUN_TIME_STATS` 打开。
+
+**调度方式**：每个任务 `next += PERIOD; osDelayUntil(next);` —— 绝对时刻等待，单拍慢一点后面不会累积漂移
+（用 `osDelay(1)` 会把 500 Hz 变成 480 Hz）。
+
+**任务间通信**：`msg_center` 的**静态环形数组 + `__disable_irq()` 临界区**，广播型（`Msg_Latest`，多个消费者各记 `seq`），
+**不用** `osMessageQueue` / `osMutex`：临界区只有几条指令，比互斥锁便宜，也没有优先级反转。
+
+#### ⚠️ RTOS 注意事项（踩过的坑）
+
+1. **`osThreadNew` 失败是静默的** —— 堆不够只返回 `NULL`，现象是"任务完全没跑"。每次都判空，失败计入 `g_thread_create_failed`
+2. **栈单位是字节** —— `attr.stack_size = 2048` 就是 2 KB，别按 word 估（会差 4 倍）
+3. **建任务不能在 `Robot_Init()` 里** —— CMSIS-RTOS2 要求先 `osKernelInitialize()`；建任务在 `OSTaskInit()`（`MX_FREERTOS_Init` 调）
+4. **ISR 里不调 FreeRTOS API**（含 `*FromISR`）—— 中断只做"解析 + 推进环形 + 置标志"，控制逻辑全在任务里
+5. **1 kHz 任务里不许 `HAL_Delay` / 忙等 / 阻塞发串口 / 大 `printf`** —— 一拍被拖住就是一个控制周期
+6. **看两个计数器判断健康**：`*_overrun`（某拍没算完）与 `hwm_*`（栈水位，单位 4 B，**< 32 word 就该加栈**）
+7. **默认钩子是 `for(;;)`** —— 本工程在 `Core/Src/freertos.c` 实现了栈溢出 / 堆失败钩子并打标记，否则现象和 HardFault 一样
+8. 完整红线见 [RTOS说明.md §8](TSRobotSystem/User/RTOS说明.md)
+
+> 细节（内核配置逐项解释、栈与堆怎么算、消息中枢为什么这样设计、加任务的 5 个步骤、更多坑）
+> 见 [User/RTOS说明.md](TSRobotSystem/User/RTOS说明.md)。
 
 ### 一块代码两块板
 
@@ -247,24 +287,43 @@ App/cmd/cmd_task.cpp、Device/comMCU/cmd_485.cpp、App/debug/debug_task.cpp   �
 
 ---
 
-## 6. 文档索引
+## 6. ❌ 红线速查（改代码前先看这几条）
+
+| 红线 | 一句话 | 在哪 |
+|---|---|---|
+| **算法不许挤进应用层** | App 里只许"取参数 → 调 `algorithm/` → 写电机目标/发话题"；公式、滤波、解算一律在 `User/algorithm/` | [代码架构框架.md §5.3](TSRobotSystem/User/代码架构框架.md) · [写代码的思想.md §14.1](TSRobotSystem/User/写代码的思想.md) |
+| **分层只许单向下** | `App → Device → Bsp`；`algorithm` 谁也不许依赖（只 `math_support`/CMSIS-DSP）| [代码架构框架.md §10.1](TSRobotSystem/User/代码架构框架.md) |
+| **任务间只走话题** | App 之间不许互相 include 对方的 task 头直接调函数 | [代码架构框架.md §3](TSRobotSystem/User/代码架构框架.md) |
+| **实时不许阻塞** | 周期任务里不许 `HAL_Delay`/忙等/阻塞发串口；不许 `osDelay(1)` 当周期 | [RTOS说明.md §8](TSRobotSystem/User/RTOS说明.md) |
+| **单位只有一处换算** | 关节侧 `rad`、轮侧 `rpm`；rpm↔rad/s 只在 `motor_task` 换 | [代码风格与模板.md §5](TSRobotSystem/User/代码风格与模板.md) |
+| **协议不许静默变** | 改帧/字段必须同时改文档；复用字段必须写注释（例：`Reserved` 装裁判功率上限）| [通信协议.md §4.5](TSRobotSystem/User/通信协议.md) |
+| **配置只有一个地方** | 几何/标定/速度/射速都在 `robot_def.h` 的「本机配置」段 | [README §3](README.md) |
+
+> 完整清单：[代码架构框架.md §10](TSRobotSystem/User/代码架构框架.md)（分层）· [代码风格与模板.md §8.1](TSRobotSystem/User/代码风格与模板.md)（写法）· [RTOS说明.md §8](TSRobotSystem/User/RTOS说明.md)（运行时）· [通信协议.md §4.5](TSRobotSystem/User/通信协议.md)（协议）
+
+---
+
+## 7. 文档索引
 
 | 文档 | 内容 |
 |---|---|
-| [User/通信协议.md](LGRobotSystem/User/通信协议.md) | `0x5A`/`0xA5`/`0x5C` 全部帧格式与字段偏移 |
-| [User/代码架构框架.md](LGRobotSystem/User/代码架构框架.md) | 分层、任务、数据流 |
-| [User/写代码的思想.md](LGRobotSystem/User/写代码的思想.md) | 踩过的坑、模板 |
-| [algorithm/chassis_control/舵轮_舵向定义.md](LGRobotSystem/User/algorithm/chassis_control/舵轮_舵向定义.md) | seat 定义、2π 归一、优劣弧、减速比 |
-| [App/chassis/chassis_task.md](LGRobotSystem/User/App/chassis/chassis_task.md) | 底盘任务：解算、航向环、功率 |
-| [Device/comMCU/cmd_485.md](LGRobotSystem/User/Device/comMCU/cmd_485.md) | 上下链路 500 Hz 一发一回 |
-| [App/debug/debug_task.md](LGRobotSystem/User/App/debug/debug_task.md) | 遥测帧与调参命令 |
-| [Device/motor/电机使用说明.md](LGRobotSystem/User/Device/motor/电机使用说明.md) | DJ/DM/LZ/YS 四品牌单位与命令位 |
-| [algorithm/RobotSlutionCalculation/RobotSlutionCalculation.md](LGRobotSystem/User/algorithm/RobotSlutionCalculation/RobotSlutionCalculation.md) | 底盘解算独立模块（纯数学层，与 App 实际解算的关系）|
+| [User/通信协议.md](TSRobotSystem/User/通信协议.md) | `0x5A`/`0xA5`/`0x5C` 全部帧格式与字段偏移 + **协议红线** |
+| [User/代码架构框架.md](TSRobotSystem/User/代码架构框架.md) | 分层、任务、数据流 + **算法/应用分界** + **禁止清单** |
+| [User/RTOS说明.md](TSRobotSystem/User/RTOS说明.md) | **FreeRTOS V10.6.2 / CMSIS-RTOS2**：内核配置、9 个任务表、栈与堆、消息中枢、加任务步骤、**RTOS 红线**、踩过的坑 |
+| [User/写代码的思想.md](TSRobotSystem/User/写代码的思想.md) | 设计原则 + **我们不做的事 / 算法层与应用层的分界线** |
+| [User/代码风格与模板.md](TSRobotSystem/User/代码风格与模板.md) | 命名/注释/单位/类写法 + 提交前自检 + **一律禁止** |
+| [User/模板/README.md](TSRobotSystem/User/模板/README.md) | 复制即用的骨架，以及"选模板时别选错层" |
+| [algorithm/chassis_control/舵轮_舵向定义.md](TSRobotSystem/User/algorithm/chassis_control/舵轮_舵向定义.md) | seat 定义、2π 归一、优劣弧、减速比 |
+| [App/chassis/chassis_task.md](TSRobotSystem/User/App/chassis/chassis_task.md) | 底盘任务：解算、航向环、功率 |
+| [Device/comMCU/cmd_485.md](TSRobotSystem/User/Device/comMCU/cmd_485.md) | 上下链路 500 Hz 一发一回 |
+| [App/debug/debug_task.md](TSRobotSystem/User/App/debug/debug_task.md) | 遥测帧与调参命令 |
+| [Device/motor/电机使用说明.md](TSRobotSystem/User/Device/motor/电机使用说明.md) | DJ/DM/LZ/YS 四品牌单位与命令位 |
+| [algorithm/RobotSlutionCalculation/RobotSlutionCalculation.md](TSRobotSystem/User/algorithm/RobotSlutionCalculation/RobotSlutionCalculation.md) | 底盘解算独立模块（纯数学层，与 App 实际解算的关系）|
 | [文档/标定与联调记录.md](文档/标定与联调记录.md) | 6020 零点、toe-in、标定的实测数据 |
 | [调试助手/README.md](调试助手/README.md) | 调试助手全功能说明 |
 
 ---
 
-## 7. 许可
+## 8. 许可
 
 MIT，见 [LICENSE](LICENSE)（随工程自带）。

@@ -1,20 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = ['serial.tools.list_ports_windows']
+hiddenimports = ''serial.tools.list_ports_windows']
 hiddenimports += collect_submodules('serial')
 
 
 a = Analysis(
-    ['调试助手.py'],
-    pathex=[],
-    binaries=[],
-    datas=[],
+    ''调试助手.py'],
+    pathex='],
+    binaries='],
+    datas='],
     hiddenimports=hiddenimports,
-    hookspath=[],
+    hookspath='],
     hooksconfig={},
-    runtime_hooks=[],
-    excludes=[],
+    runtime_hooks='],
+    excludes='],
     noarchive=False,
     optimize=0,
 )
@@ -25,13 +25,13 @@ exe = EXE(
     a.scripts,
     a.binaries,
     a.datas,
-    [],
+    '],
     name='调试助手',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude='],
     runtime_tmpdir=None,
     console=False,
     disable_windowed_traceback=False,

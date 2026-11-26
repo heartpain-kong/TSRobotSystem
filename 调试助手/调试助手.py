@@ -1390,7 +1390,7 @@ class Recorder:
         lines += ["", "## 4. 如何使用", "",
                   "1. 先看第 2 节:状态变化的时间点 + 第 3 节的快照",
                   "2. 若 `故障码 != 正常`,把快照里的 `PC=0x...` 拿去反查:",
-                  "   `arm-none-eabi-addr2line -e LGRobotSystem.elf -f -C 0x<pc>`",
+                  "   `arm-none-eabi-addr2line -e TSRobotSystem.elf -f -C 0x<pc>`",
                   "3. 时间列来自上位机时钟(不是 MCU 时钟),用于对齐多路数据",
                   "4. 需要逐帧数据时看同名的 `.csv`", "", "---",
                   f"*由 调试助手 ({CONFIG['platform']}) 自动生成*"]

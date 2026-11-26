@@ -6,12 +6,15 @@ STM32 机器人串口调试工具，Windows / Ubuntu 22.04 通用，Tkinter 单�
 ## 目录
 
 ```text
-调试助手.py                 通用源码(Windows / Ubuntu)
-windows/                    Windows 运行 + PyInstaller 打包
-ubuntu/x64/                 Ubuntu 22.04 x86_64 运行 + 打包
-ubuntu/arm/                 Ubuntu 22.04 arm64 运行 + 打包
-android/                    Android(Kivy)版 + buildozer 打包,协议与桌面版同源
+调试助手.py                 唯一源码(Windows / Ubuntu 共用)
+windows/                    Windows 打包脚本(--onefile 的 spec/build.ps1 引用 ../调试助手.py)
+ubuntu/x64/                 Ubuntu 22.04 x86_64 运行/打包脚本(引用 ../调试助手.py)
+ubuntu/arm/                 Ubuntu 22.04 arm64 运行/打包脚本(引用 ../调试助手.py)
+android/                    Android(Kivy)版 + buildozer 打包,proto.py 由 tools/sync_proto.py 从 ../调试助手.py 抽取
 ```
+
+> 各平台目录里**不再放 `调试助手.py` 副本**(以前放过,结果三份副本各自漂移、协议版本对不上)。
+> 改协议只改根目录这一份;打包脚本已经全部指向 `../调试助手.py`。
 
 ## 功能
 

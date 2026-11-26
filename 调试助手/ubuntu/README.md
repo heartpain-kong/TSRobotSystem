@@ -16,7 +16,7 @@ arm/    arm64 (aarch64)
 
 每个目录都包含：
 
-- `调试助手.py`：通用源码；
+- `../调试助手.py`：通用源码（唯一一份，各平台目录只放脚本）；
 - `run.sh`：直接运行；
 - `build.sh`：用 PyInstaller 打成单文件；
 - `requirements.txt`；

@@ -4,7 +4,7 @@
 
 ```powershell
 python -m pip install pyserial
-python .\调试助手.py
+python ..\调试助手.py
 ```
 
 或双击 `调试助手.exe`（如果已打包）。
