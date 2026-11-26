@@ -1,0 +1,50 @@
+# clangd 配置
+#
+# 为什么需要这个文件:
+#   1) 本工程的编译数据库(compile_commands.json)由 CMake 生成在构建目录里,而构建目录
+#      【不在源码树内】,clangd 默认的"祖先目录 + build/"搜索找不到它 —— 于是它只能靠猜
+#      include 路径,新加的目录(如 User/Bsp/timestamp)就会报 "'xxx.h' file not found",
+#      而实际用 GCC 编译是过的(CMakeLists 里有那个 -I)。
+#   2) 拿到数据库后还有第二个坑:clangd 是 clang 前端,而数据库里的命令是
+#      arm-none-eabi-g++(GCC)。clang 不认识 GCC 的隐式 sysroot,会找不到 stdint.h
+#      等标准头 → 所以下面要显式把 GCC 的头目录塞进去。
+#
+# 前提:构建时打开 CMAKE_EXPORT_COMPILE_COMMANDS。
+#   CLion:Settings → Build,Execution,Development → CMake → CMake options 加
+#          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON   然后 Reload CMake Project
+#   (已写进本机构建目录的 CMakeCache,Reload 后会沿用)
+#
+# 换工具链版本(GCC 14.3.1 → 其它)时改下面的路径。
+
+CompileFlags:
+  CompilationDatabase: cmake-build-debug-mingw
+
+  # 用 clang 自己的驱动,但按 ARM 目标解析(否则 CMSIS/HAL 里的 ARM 内联汇编会报错)
+  Compiler: clang
+
+  # clang 不认 GCC 的 -mthumb-interwork(ARMv7 上本来就是空操作,可忽略)
+  Remove:
+    - -mthumb-interwork
+
+  Add:
+    - --target=arm-none-eabi
+    - -mcpu=cortex-m7
+    - -mthumb
+    - -mfloat-abi=hard
+    - -mfpu=fpv5-d16
+    - -ffreestanding
+    # GCC 的 C 标准头(newlib:stdint.h / string.h 都在这)
+    - -isystem
+    - E:/cubeclt/STM32CubeCLT_1.21.0/GNU-tools-for-STM32/arm-none-eabi/include
+    # GCC 私有头(stddef.h / stdarg.h / float.h ... 这些【不在 newlib 里】,
+    # 平时由 GCC 隐式提供;CLion 只带 clangd、不带 clang 驱动,没有内建头,
+    # 所以必须显式指过来,否则报 'stddef.h' file not found)
+    - -isystem
+    - E:/cubeclt/STM32CubeCLT_1.21.0/GNU-tools-for-STM32/lib/gcc/arm-none-eabi/14.3.1/include
+    - -isystem
+    - E:/cubeclt/STM32CubeCLT_1.21.0/GNU-tools-for-STM32/lib/gcc/arm-none-eabi/14.3.1/include-fixed
+    # GCC 的 C++ 标准头 + 目标专属头
+    - -isystem
+    - E:/cubeclt/STM32CubeCLT_1.21.0/GNU-tools-for-STM32/arm-none-eabi/include/c++/14.3.1
+    - -isystem
+    - E:/cubeclt/STM32CubeCLT_1.21.0/GNU-tools-for-STM32/arm-none-eabi/include/c++/14.3.1/arm-none-eabi

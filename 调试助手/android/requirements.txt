@@ -1,0 +1,3 @@
+# 桌面预览用的依赖(打 APK 时以 buildozer.spec 里的 requirements 为准)
+kivy>=2.3.0
+pyserial>=3.5

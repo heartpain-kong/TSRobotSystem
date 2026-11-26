@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=调试助手
+Comment=STM32 机器人串口调试助手
+Exec=sh -c 'cd "$(dirname "%k")" && ./run.sh'
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;Utility;

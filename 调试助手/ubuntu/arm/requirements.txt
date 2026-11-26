@@ -1,0 +1,4 @@
+﻿pyserial>=3.5
+pyinstaller>=6.0
+# 背景图:装 Pillow 才支持 JPG/WebP,动图也更顺;不装照样能用 GIF/PNG
+pillow>=10.0

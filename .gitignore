@@ -1,0 +1,39 @@
+# 构建产物
+build/
+build-*/
+cmake-build-*/
+cmake-build-*/*
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# 固件产物
+*.elf
+*.hex
+*.bin
+*.map
+*.o
+*.obj
+*.su
+*.d
+
+# IDE / 工具缓存
+.idea/
+.settings/
+.vscode/
+.clangd/cache/
+__pycache__/
+*.pyc
+
+# 调试助手的打包产物与导出
+调试助手/windows/build/
+调试助手/windows/dist/
+调试助手/导出/
+*.exe
+*.tar.gz
+
+# 临时/备份
+*.bak*
+tmp_*.png
+~$*
