@@ -80,6 +80,7 @@ include_directories(
         User/Device/electric
         User/Device/referee
         User/Device/minipc
+User/Device/comMCU
         User/Device/motor
         User/Device/motor/motor_DJ
         User/Device/motor/motor_DM

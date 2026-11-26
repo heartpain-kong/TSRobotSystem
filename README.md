@@ -77,7 +77,7 @@ cmake --build build -j 8
 #define ROBOT_BOARD_SEL  ROBOT_BOARD_UPPER   /* 上板 */
 ```
 
-两个配置都是编过的（下位机 **180 800 B** / 上板 **183 056 B**），`Core/`、`Drivers/`、
+两个配置都是编过的（Release：下位机 **186 972 B** / 上板 **189 360 B**），`Core/`、`Drivers/`、
 `Middlewares/`（含 CMSIS-DSP 预编译库 `libarm_cortexM7lfsp_math.a`）全在树内，无外部依赖、无绝对路径。
 
 > ⚠️ **必须放在纯 ASCII 路径下构建**（如 `D:\opensource\`）。路径带中文时 `mingw32-make` 会报
@@ -176,7 +176,7 @@ VOFA 风格波形、电机/舵轮/底盘子窗口、CSV/HEX/Markdown 导出。
 | 上位机/裁判/miniPC | `0xA5`（与 485 链路同帧格式） |
 
 帧结构、字段偏移见 [User/通信协议.md](LGRobotSystem/User/通信协议.md)；
-485 帧的 channel/mode 位定义见 [cmd_485.md](LGRobotSystem/User/App/cmd/cmd_485.md)。
+485 帧的 channel/mode 位定义见 [Device/comMCU/cmd_485.md](LGRobotSystem/User/Device/comMCU/cmd_485.md)。
 
 ---
 
@@ -201,7 +201,7 @@ User/
 
 ```text
 App/cmd/cmd_task.cpp        命令来源(下板: 从 485 来)
-App/cmd/cmd_485.cpp         上板发命令 / 下板收命令 + 回反馈
+Device/comMCU/cmd_485.cpp   上板发命令 / 下板收命令 + 回反馈(设备层)
 App/debug/debug_task.cpp    UART 直发只在上板开(DEBUG_UART_TX_ENABLE)
 App/motor_task/motor_task.cpp  DM_MOTOR_N(上板 1 / 下板 0) ⇒ 4310 只在 CAN2 上建对象
 App/robot/robot.cpp         上板跳过 Chassis_Init() / 只在上板初始化裁判
@@ -229,7 +229,7 @@ App/robot/robot_def.h        ROBOT_UPPER_ONLY 派生 + 电机分配表
 App/robot/robot_def.h        ROBOT_BOARD_SEL / GIMBAL_MOTOR_PITCH(0xFE) / 板卡派生宏
 App/robot/robot.cpp          上板跳过 Chassis_Init()(不等舵向找零)
 App/motor_task/motor_task.cpp DM_MOTOR_N(上板 1/下板 0) + CAN2_Callback + motor_task_4310_*
-App/cmd/{cmd_task,cmd_485}.cpp、App/debug/debug_task.cpp   命令来源 / UART 直发
+App/cmd/cmd_task.cpp、Device/comMCU/cmd_485.cpp、App/debug/debug_task.cpp   命令来源 / 485 收发 / UART 直发
 ```
 
 ### 上板第一次烧录前的检查清单（重要）
@@ -256,7 +256,7 @@ App/cmd/{cmd_task,cmd_485}.cpp、App/debug/debug_task.cpp   命令来源 / UART 
 | [User/写代码的思想.md](LGRobotSystem/User/写代码的思想.md) | 踩过的坑、模板 |
 | [algorithm/chassis_control/舵轮_舵向定义.md](LGRobotSystem/User/algorithm/chassis_control/舵轮_舵向定义.md) | seat 定义、2π 归一、优劣弧、减速比 |
 | [App/chassis/chassis_task.md](LGRobotSystem/User/App/chassis/chassis_task.md) | 底盘任务：解算、航向环、功率 |
-| [App/cmd/cmd_485.md](LGRobotSystem/User/App/cmd/cmd_485.md) | 上下链路 500 Hz 一发一回 |
+| [Device/comMCU/cmd_485.md](LGRobotSystem/User/Device/comMCU/cmd_485.md) | 上下链路 500 Hz 一发一回 |
 | [App/debug/debug_task.md](LGRobotSystem/User/App/debug/debug_task.md) | 遥测帧与调参命令 |
 | [Device/motor/电机使用说明.md](LGRobotSystem/User/Device/motor/电机使用说明.md) | DJ/DM/LZ/YS 四品牌单位与命令位 |
 | [algorithm/RobotSlutionCalculation/README.md](LGRobotSystem/User/algorithm/RobotSlutionCalculation/README.md) | 底盘解算独立模块 |
