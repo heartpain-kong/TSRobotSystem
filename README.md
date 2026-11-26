@@ -1,4 +1,10 @@
-# LGRobotSystem — 舵轮底盘控制系统（一套代码 · 两块板 · 一个调试助手）
+<p align="center">
+  <img src="assets/logo.png" alt="天枢战队" width="210">
+</p>
+
+# 天枢战队-机器人控制系统开源
+
+> 舵轮底盘 · 双 MCU（下位机 + 上板）· 一套代码 `robot_def.h` 一行切板 · 配套 PC/Ubuntu/Android 调试助手
 
 STM32H723 舵轮机器人：**同一份代码烧两块板**，`robot_def.h` 里一行开关决定编哪块：
 
