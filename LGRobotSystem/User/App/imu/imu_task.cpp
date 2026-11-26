@@ -36,6 +36,9 @@ static_assert(sizeof(Imu_Data_t) <= MSG_SLOT_SIZE, "Imu_Data_t 超过 MSG_SLOT_S
 
 static Class_QuaternionEKF s_ekf;
 static Imu_Data_t s_imu[IMU_CHANNEL_NUM];
+/* ★ 上板云台 pitch 用:上电把"当前 pitch"当成关节 0(4310 机械零点不在 0 时靠它对齐) */
+static float s_pitch_zero = 0.0f;
+static bool  s_pitch_zero_set = false;
 static uint32_t s_last_us = 0u;
 
 /* ============================================================================
@@ -101,6 +104,10 @@ void Imu_Task(void)
 
         data->Euler[0] = s_ekf.Get_Roll_Rad();
         data->Euler[1] = s_ekf.Get_Pitch_Rad();
+        if (s_pitch_zero_set)
+        {
+            data->Euler[1] -= s_pitch_zero;
+        }
         data->Euler[2] = s_ekf.Get_Yaw_Rad();
         data->Yaw_Total = s_ekf.Get_YawTotalAngle_Rad();
         s_ekf.Get_Quaternion(data->Quat);
@@ -126,6 +133,17 @@ void Imu_Task(void)
     /* ⑦ IMU 异常上报(掉线/没收敛都算,收敛前不报,免得刚上电一直橙灯) */
     Error_Set_Flag(ERROR_FLAG_MASK(ERROR_FLAG_IMU),
                    (!data->Online) || (data->Update_Count > 500u && !data->Converged));
+}
+
+/* 上板云台 pitch:把当前 pitch 记为 0(4310 机械零点对齐用) */
+void Imu_Zero_Pitch_Now(void)
+{
+    if (!s_imu[IMU_CHANNEL_GIMBAL].Online)
+    {
+        return;
+    }
+    s_pitch_zero = s_ekf.Get_Pitch_Rad();
+    s_pitch_zero_set = true;
 }
 
 const Imu_Data_t *Imu_Get(uint8_t __channel)

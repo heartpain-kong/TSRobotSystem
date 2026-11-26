@@ -38,9 +38,13 @@
    要重新启用舵向位置环,改成 1 即可。 */
 #define MOTOR_POS_LOOP_ENABLE   1   /* auto: speed cmd -> speed loop, angle cmd -> position loop */
 
-/* 达妙(当前未接):反馈帧的 CAN id 是共用 Master ID,
+/* 达妙 DM4310(云台 pitch,只有上板挂):反馈帧的 CAN id 是共用 Master ID,
    真正的电机身份在**数据第 1 字节的低 4 位**(高 4 位是 ERR) */
-#define DM_MOTOR_N              0
+#if ROBOT_UPPER_ONLY
+#  define DM_MOTOR_N            1       /* 上板: 云台 pitch DM4310 @CAN2(id=1) */
+#else
+#  define DM_MOTOR_N            0       /* 下位机: 没有 DM 电机 */
+#endif
 
 #define MOTOR_DM_ENABLE_ON_INIT 0u      /* 0: 不发 DM 使能帧(总线上没有 DM ⇒ 会打成 BUS-OFF) */
 #define MOTOR_DM_ENABLE_WAIT_MS 20u     /* 使能后等反馈的时长(反馈里带当前位置) */
@@ -138,6 +142,8 @@ static MotorPidCfg s_pid_cfg[PID_IDX_COUNT] = {
 
 #if (DM_MOTOR_N > 0)
 static Class_Motor_DM dm_motor[DM_MOTOR_N];    /* 下标 i ↔ 电机 id (i+1) */
+static volatile uint32_t dm4310_rx_us = 0u;    /* 最近一帧反馈时间(在线判定 + 零偏锁存条件) */
+static volatile uint32_t dm4310_rx_count = 0u;
 #endif
 
 static Class_Motor_DJ steer_motor;   /* 0x202 第一组舵向 3508 */
@@ -303,19 +309,21 @@ static void CAN1_Callback(FDCAN_RxHeaderTypeDef Header, uint8_t *Buffer)
         return;
     }
 
+}
+
 #if (DM_MOTOR_N > 0)
+/* 上板: 云台 pitch DM4310 挂在 CAN2(id=1),与底盘那组 0x20x 分开收 */
+static void CAN2_Callback(FDCAN_RxHeaderTypeDef Header, uint8_t *Buffer)
+{
     if (Buffer == nullptr)
     {
         return;
     }
-
-    const uint8_t motor_id = Buffer[0] & 0x0Fu;
-    if ((motor_id >= 1u) && (motor_id <= DM_MOTOR_N))
-    {
-        dm_motor[motor_id - 1u].recv(Header.Identifier, Buffer, 8u);
-    }
-#endif
+    dm4310_rx_us = Timestamp_Get_Us32();
+    dm4310_rx_count++;
+    dm_motor[0].recv(Header.Identifier, Buffer, 8u);
 }
+#endif
 
 #if 0 /* CAN3 已移到 cmd_can3.cpp */
 #endif
@@ -722,6 +730,9 @@ extern "C" void motor_task_init(void)
 #endif
 
     bsp_can_init(&hfdcan1, CAN1_Callback);
+#if (DM_MOTOR_N > 0)
+    bsp_can_init(&hfdcan2, CAN2_Callback);   /* 上板: 4310 云台 pitch 在 CAN2 */
+#endif
     /* CAN3 init moved to Cmd_Can3_Init() */
     drive_motor.enable();
     steer_motor.enable();
@@ -742,6 +753,12 @@ extern "C" void motor_task_init(void)
                          MOTOR_DJ_M3508, motor_speed, Motor_Control_Freq_1000HZ);
     aux_group[2].Set_Gearbox_Rate(19.2f);   /* 3508 摩擦轮 */
     aux_group[3].Set_Gearbox_Rate(19.2f);
+
+#if (DM_MOTOR_N > 0)
+    /* 4310 云台 pitch: DM J4310, CAN2, id=1, MIT 位置模式(上板才有) */
+    dm_motor[0].Init(&hfdcan2, 1u, MOTOR_DM_J4310, motor_pos,
+                     Motor_Control_Freq_1000HZ);
+#endif
     aux_group[2].PID_speed.Init(s_pid_cfg[PID_IDX_207_FRICTION_L].speed_kp,
                                 s_pid_cfg[PID_IDX_207_FRICTION_L].speed_ki,
                                 s_pid_cfg[PID_IDX_207_FRICTION_L].speed_kd, 0.0f,
@@ -1589,6 +1606,76 @@ extern "C" bool motor_task_6020_is_zeroed(void)
 extern "C" float motor_task_aux_get_pos(uint8_t __index)
 {
     return (__index > 1u) ? 0.0f : aux_group[__index].Get_Now_pos();
+}
+
+/* ---- 云台 pitch DM4310(只有上板挂;下位机给空实现,调用方不用 #if) ---- */
+extern "C" uint8_t motor_task_4310_online(void)
+{
+#if (DM_MOTOR_N > 0)
+    if (dm4310_rx_us == 0u)
+    {
+        return 0u;
+    }
+    return ((uint32_t)(Timestamp_Get_Us32() - dm4310_rx_us) < MOTOR_ONLINE_TIMEOUT_US) ? 1u : 0u;
+#else
+    return 0u;
+#endif
+}
+
+extern "C" float motor_task_4310_pos(void)
+{
+#if (DM_MOTOR_N > 0)
+    return dm_motor[0].Get_Now_Pos();
+#else
+    return 0.0f;
+#endif
+}
+
+extern "C" float motor_task_4310_w(void)
+{
+#if (DM_MOTOR_N > 0)
+    return dm_motor[0].Get_Now_W();
+#else
+    return 0.0f;
+#endif
+}
+
+extern "C" float motor_task_4310_t(void)
+{
+#if (DM_MOTOR_N > 0)
+    return dm_motor[0].Get_Now_T();
+#else
+    return 0.0f;
+#endif
+}
+
+extern "C" uint32_t motor_task_4310_rx_count(void)
+{
+#if (DM_MOTOR_N > 0)
+    return dm4310_rx_count;
+#else
+    return 0u;
+#endif
+}
+
+/* MIT 位置 + Kp/Kd + 力矩前馈(重力补偿由 gimbal_task 算好传进来) */
+extern "C" void motor_task_4310_set_pitch(float __pos, float __kp, float __kd, float __t_ff)
+{
+#if (DM_MOTOR_N > 0)
+    dm_motor[0].Set_Pos(__pos);
+    dm_motor[0].Set_Kp(__kp);
+    dm_motor[0].Set_Kd(__kd);
+    dm_motor[0].Set_T(__t_ff);
+    if (!dm_motor[0].Is_Enabled())
+    {
+        dm_motor[0].enable();
+    }
+#else
+    (void)__pos;
+    (void)__kp;
+    (void)__kd;
+    (void)__t_ff;
+#endif
 }
 
 extern "C" float motor_task_aux_get_target_rad(uint8_t __index)

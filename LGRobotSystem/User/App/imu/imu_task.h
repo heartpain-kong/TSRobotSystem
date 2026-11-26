@@ -59,6 +59,11 @@ void Imu_Task(void);
 const Imu_Data_t *Imu_Get(uint8_t __channel);
 
 /**
+ * @brief 把当前 pitch 角记为 0(云台 4310 机械零点对齐用;上板云台 pitch 在启动时调用)
+ */
+void Imu_Zero_Pitch_Now(void);
+
+/**
  * @brief 该通道是否在线
  */
 bool Imu_Is_Online(uint8_t __channel);

@@ -125,16 +125,21 @@
 #define CHASSIS_TASK_PRIORITY   osPriorityNormal
 #define CHASSIS_TASK_STACK      2048u
 
-/* ---------------- 电机分配(注册表下标 → 用途;★ 按实车接线改) ----------------
-   ⚠️ 同一路电机只能归一个任务。现在注册表只有 2 台(CAN1 两台达妙):
-      底盘占 0/1(四轮只接上前两路),云台默认**未分配**(0xFF);
-      接上云台电机后,把 GIMBAL_MOTOR_YAW/PITCH 改成实际下标即可 ✓ */
+/* ---------------- 电机分配(★ 两块板按 ROBOT_BOARD_SEL 自动选) ----------------
+   下位机: 舵向 202/204 + 驱动 201/203 + 6020 云台 yaw + 0x206 拨弹盘,没有 DM
+   上板  : 云台 pitch = DM4310(0xFE 是"走 4310 专用通道"的约定值),摩擦轮 0x207/0x208 走 motor_task 摩擦轮 API
+   ⚠️ 同一路电机只能归一个任务 */
 #define CHASSIS_MOTOR_0         0u      /* 1 号轮(右前) */
 #define CHASSIS_MOTOR_1         1u      /* 2 号轮(左前) */
 #define CHASSIS_MOTOR_2         2u      /* 3 号轮(左后) */
 #define CHASSIS_MOTOR_3         3u      /* 4 号轮(右后) */
-#define GIMBAL_MOTOR_YAW        0xFFu   /* 云台 yaw:0xFF = 未分配 */
-#define GIMBAL_MOTOR_PITCH      0xFFu   /* 云台 pitch:0xFF = 未分配 */
+#if ROBOT_UPPER_ONLY
+#  define GIMBAL_MOTOR_YAW      0xFFu   /* 上板不驱动 yaw(yaw 是下板的 6020) */
+#  define GIMBAL_MOTOR_PITCH    0xFEu   /* ★ DM4310 / CAN2,走 motor_task_4310_* 专用通道 */
+#else
+#  define GIMBAL_MOTOR_YAW      0xFFu   /* 下位机不驱动云台关节(yaw 由 chassis_task 保 6020 世界朝向) */
+#  define GIMBAL_MOTOR_PITCH    0xFFu
+#endif
 
 //云台任务:500Hz —— 收 CMD + IMU_GIMBAL + CHASSIS → yaw/pitch 关节角 MIT 控制 + 小陀螺前馈
 #define GIMBAL_TASK_PERIOD_MS   2u

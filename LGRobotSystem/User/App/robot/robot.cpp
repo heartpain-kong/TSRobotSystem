@@ -167,7 +167,10 @@ extern "C" void Robot_Init(void)
     Cmd_Init();     /* cmd 层:注册上/下 MCU 链路(USART2 RS485,500Hz) */
     Imu_Init();     /* 姿态解算:初始化 EKF(设备 BMI088 上面已初始化) */
     Debug_Init();    /* 调试串口提前初始化:找零期间只发不收 */
-    Chassis_Init(); /* 底盘解算 + 找零(阻塞);期间 Debug_Send_Homing 直接发 TX */
+#if !ROBOT_UPPER_ONLY
+    Chassis_Init(); /* 底盘解算 + 找零(阻塞);期间 Debug_Send_Homing 直接发 TX。
+                       ★ 上板没有舵向电机/光电,绝不能走这里(会一直等找零) */
+#endif
     Gimbal_Init();  /* 云台:关节角控制(电机分配见 robot_def.h) */
     HighRise_Init(); /* 末端机构:摩擦轮/拨弹(机构类型见 robot_def.h 的 HIGHRISE_MECH) */
 

@@ -45,6 +45,8 @@ void Gimbal_Init(void);
  *   收 CMD + IMU_GIMBAL + CHASSIS → 算目标角 → 写 MIT 位置目标 → 发布 GIMBAL
  */
 void Gimbal_Task(void);
+/** @brief pitch 重力前馈 Tmax(m*g*L),运行时标定 */
+void Gimbal_Set_Pitch_Tmax(float __tmax);
 
 /**
  * @brief 读云台数据

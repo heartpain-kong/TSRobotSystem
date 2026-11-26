@@ -258,6 +258,14 @@ float motor_task_aux_get_target_rpm(uint8_t __index);
 float motor_task_aux_get_pos(uint8_t __index);
 float motor_task_aux_get_target_rad(uint8_t __index);
 
+/* ---- 云台 pitch DM4310(只有上板有;下位机编出来是空函数体) ---- */
+uint8_t motor_task_4310_online(void);
+float motor_task_4310_pos(void);
+float motor_task_4310_w(void);
+float motor_task_4310_t(void);
+uint32_t motor_task_4310_rx_count(void);
+void motor_task_4310_set_pitch(float __pos, float __kp, float __kd, float __t_ff);
+
 #ifdef __cplusplus
 }
 

@@ -198,21 +198,33 @@ App/debug/debug_task.cpp  31/397/1171/1279         UART 直发只在上板开
 | 项 | 下位机 | 上板 |
 |---|---|---|
 | 云台 yaw | **6020**（`aux_group[1]`, 0x205, CAN1）| 不驱动（`GIMBAL_MOTOR_YAW = 0xFF`）|
-| 云台 pitch | 不驱动 | **DM4310**（`MOTOR_DM_J4310`, CAN2, id1）|
-| 摩擦轮 | 不驱动 | **0x207 / 0x208**（`HIGHRISE_MOTOR_FRICTION_L/R`）|
+| 云台 pitch | 不驱动 | **DM4310**（`MOTOR_DM_J4310`, CAN2, id1, MIT 位置 + 重力前馈）|
+| 摩擦轮 | 同框架（物理上没接）| **0x207 / 0x208**（`aux_group[2]/[3]`，`motor_task_friction_*` API）|
 | 拨弹盘 | **0x206**（`aux_group[0]`）| 不驱动 |
-| 舵向/驱动 | 202/204 + 201/203 | 不驱动（不进底盘控制）|
-| IMU | 底盘 IMU（单颗 BMI088）| 云台 IMU（单颗 BMI088）|
+| 舵向/驱动 | 202/204 + 201/203 | 不驱动（`Chassis_Init()` 在上板被 `#if !ROBOT_UPPER_ONLY` 跳过）|
+| IMU | 底盘 IMU（单颗 BMI088）| 云台 IMU（单颗 BMI088，含 `Imu_Zero_Pitch_Now()` 关节零偏）|
 
-> ⚠️ **当前状态**：合并后的这份代码，**下位机构建是实车验证过的**（2026-11-26 联调），
-> **上板构建只验证了能编过**。要把上板也做成功能完整的，还需要把旧上板工程里这三处
-> 板级差异搬进来（现在被合并成单板配置了）：
->
-> 1. `motor_task.cpp`：`DM_MOTOR_N 0 → 1` 且 `dm_motor[0].Init(&hfdcan2, 1u, MOTOR_DM_J4310, ...)`
-> 2. `robot_def.h`：`HIGHRISE_MOTOR_FRICTION_L/R = 1/2`、`GIMBAL_MOTOR_PITCH = 0xFE`
-> 3. `robot.cpp`：`#if !ROBOT_UPPER_ONLY` 包住 `Chassis_Init()`（否则上板会去等不存在的舵向找零）
->
-> 这三处按 `#if ROBOT_UPPER_ONLY` 包起来即可，不影响下位机。
+板级差异全部用 `#if ROBOT_UPPER_ONLY` 收口，共 4 类：
+
+```text
+App/robot/robot_def.h        ROBOT_BOARD_SEL / GIMBAL_MOTOR_PITCH(0xFE) / 板卡派生宏
+App/robot/robot.cpp          上板跳过 Chassis_Init()(不等舵向找零)
+App/motor_task/motor_task.cpp DM_MOTOR_N(上板 1/下板 0) + CAN2_Callback + motor_task_4310_*
+App/cmd/{cmd_task,cmd_485}.cpp、App/debug/debug_task.cpp   命令来源 / UART 直发
+```
+
+### 上板第一次烧录前的检查清单（重要）
+
+上板代码是**从 11-20 版旧上板工程逐字节搬过来**的（`gimbal_task.cpp` 与旧工程完全相同），
+但换了新框架，第一次上电请按这个顺序验：
+
+1. **架空**：车体垫起、云台手扶住，再上电
+2. 看 `m6020.online` / `4310 online`（调试助手 `0x0102` 帧）——没有 4310 反馈 = CAN2/ID 不对，先别放云台
+3. 推 pitch：云台应平滑跟随、松手不回落（重力前馈生效）；`MOTOR_DM_ENABLE_ON_INIT = 0`，
+   使能由 `gimbal_task` 第一次发目标时触发，所以**上电后不动摇杆时 DM4310 是松的**，属正常
+4. 推 shoot：摩擦轮 0x207/0x208 起转；拨弹盘在下位机（0x206），要两块板都在线
+5. 上板 `pitch` 限位沿用旧实测值 `-0.53 / +0.53 rad`、`GIMBAL_KP = 25`；要改就改
+   `gimbal_task.cpp` 顶部那一段（下位机不驱动 pitch，不受影响）
 
 ---
 
