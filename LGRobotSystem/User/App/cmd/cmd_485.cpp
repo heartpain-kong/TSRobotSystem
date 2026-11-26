@@ -15,6 +15,7 @@
 #include "crc_ccitt.h"          /* CRC16(reflected 0x8408, init 0) */
 #include "dev_minipc.h"
 #include "imu_task.h"
+#include "dev_referee.h"        /* 裁判系统:只在上板接(USART1),数据经 485 下发 */
 #include "math_support.h"         /* MiniPC_Cmd_Payload_t:复用虚拟串口的命令载荷 */
 #include "robot_def.h"          /* ROBOT_UPPER_ONLY */
 
@@ -43,6 +44,10 @@ static volatile uint8_t  s_cmd_shoot_rate = 0u;/* payload.Shoot_Rate */
 static volatile uint8_t  s_cmd_flags = 0u;     /* mode 低 2 位 */
 static volatile uint32_t s_cmd_ms = 0u;
 static volatile bool     s_cmd_seen = false;
+/* 裁判系统只接在上板(USART1 115200):功率上限借半帧 A 的 Reserved 字节下发,
+   下板没有裁判接收机,靠这个值做限功率 */
+static volatile uint16_t s_cmd_power_limit = 0u;
+static volatile uint32_t s_cmd_power_ms = 0u;
 
 /* 下 -> 上:反馈 */
 static volatile float    s_fb_vx = 0.0f;
@@ -320,6 +325,9 @@ static void Cmd_485_Rx(UART_HandleTypeDef *__huart, uint8_t *__buf, uint16_t __s
         s_cmd_flags = (uint8_t)(mode & 0x03u);
         s_cmd_ms    = s_last_ms;
         s_cmd_seen  = true;
+        /* 裁判功率上限(上板裁判 → Reserved 字节);0 = 没有裁判 */
+        s_cmd_power_limit = p.Reserved;
+        s_cmd_power_ms    = s_last_ms;
 
 #if !ROBOT_UPPER_ONLY
         /* 下行的调试字节:送给下板的调试解析 */
@@ -432,6 +440,18 @@ void Cmd_485_Task(void)
             p.Chassis_W     = cmd->Chassis_W;
             p.Gimbal_Yaw    = cmd->Gimbal_Yaw;
             p.Gimbal_Pitch  = cmd->Gimbal_Pitch;
+
+            /* ★ 裁判系统只在本板(上板)接收:把功率上限借 Reserved 字节下发给下板,
+               下板没有裁判接收机,靠它做底盘限功率(0 = 没有裁判 / 练习模式) */
+            {
+                const Referee_Data_t *rf = Referee_Get();
+                uint16_t pl = (rf != nullptr) ? rf->Chassis_Power_Limit : 0u;
+                if (pl > 255u)
+                {
+                    pl = 255u;      /* 1 字节装得下 120W 的量程 */
+                }
+                p.Reserved = (uint8_t)pl;
+            }
 
             if (cmd->Chassis_Spin)
             {
@@ -581,3 +601,22 @@ bool  Cmd_485_Get_Shoot(uint8_t *__en, uint8_t *__rate)
 }
 float Cmd_485_Get_Upper_Gyro_Z(void)   { return s_upper_gyro_z; }
 uint32_t Cmd_485_Get_Upper_Yaw_Ms(void){ return s_upper_yaw_ms; }
+
+/* 上板裁判系统给的底盘功率上限(裁判接收机只在上板 USART1) */
+bool Cmd_485_Get_Power_Limit(uint16_t *__w)
+{
+    if (!s_cmd_seen || (__w == nullptr))
+    {
+        return false;
+    }
+    if ((uint32_t)(Timestamp_Get_Ms() - s_cmd_power_ms) > 100u)
+    {
+        return false;       /* 链路断了:别用陈旧的功率上限 */
+    }
+    if (s_cmd_power_limit == 0u)
+    {
+        return false;       /* 上板报告"没有裁判" ⇒ 走练习模式保守值 */
+    }
+    *__w = s_cmd_power_limit;
+    return true;
+}

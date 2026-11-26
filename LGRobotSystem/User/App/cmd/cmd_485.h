@@ -104,6 +104,12 @@ float    Cmd_485_Get_Upper_Yaw(void);
 float    Cmd_485_Get_Gimbal_Yaw_Cmd(void);
 /** @brief 上板拨杆决定的发射指令(Shoot_Enable / Shoot_Rate);链路有效时返回 true */
 bool     Cmd_485_Get_Shoot(uint8_t *__en, uint8_t *__rate);
+/**
+ * @brief 上板裁判系统给的底盘功率上限 [W](借半帧 A 的 Reserved 字节下发)
+ * @note  裁判接收机只接在**上板 USART1**;下板没有接收机,只能拿这个值。
+ *        返回 false = 链路超时或上板报告"无裁判",此时该用练习模式的保守值。
+ */
+bool     Cmd_485_Get_Power_Limit(uint16_t *__w);
 float    Cmd_485_Get_Upper_Gyro_Z(void);
 uint32_t Cmd_485_Get_Upper_Yaw_Ms(void);
 

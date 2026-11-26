@@ -105,7 +105,8 @@ void Cmd_Task(void)
     bool ref_ok;
 
 #ifndef ROBOT_UPPER_ONLY
-    /* 下 MCU 不接遥控器: CAN3 指令是唯一驾驶来源 */
+    /* 下 MCU 不接遥控器: CAN3 指令是唯一驾驶来源。
+       裁判系统也只接在上板 USART1 ⇒ 功率上限等从 485 拿 */
     {
         float cvx, cvy, cw; uint8_t cmode;
         if (Cmd_485_Get_Chassis(&cvx, &cvy, &cw, &cmode))
@@ -115,6 +116,14 @@ void Cmd_Task(void)
             s_cmd.Chassis_Vy = cvy;
             s_cmd.Chassis_W  = cw;
             s_cmd.Chassis_Spin = (cmode & 0x02u) != 0u;
+
+            /* 裁判(上板收)给的功率上限;0/超时 ⇒ 练习模式保守值 */
+            {
+                uint16_t pl = 0u;
+                const uint16_t limit = Cmd_485_Get_Power_Limit(&pl) ? pl : PRACTICE_POWER_LIMIT;
+                s_cmd.Chassis_Power_Limit = (limit > CMD_POWER_LIMIT) ? CMD_POWER_LIMIT : limit;
+            }
+
             s_cmd.Seq++;
             (void)Msg_Publish(MSG_TOPIC_CMD, &s_cmd, (uint16_t)sizeof(s_cmd));
             Cmd_485_Task();

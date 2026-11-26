@@ -248,10 +248,16 @@ extern "C" void Robot_Init(void)
     rc_init_ok = Remote_Init(&huart5);
     Log_Printf(LOG_LEVEL_INFO, "rc: init %s (uart5 100000 8E1)", rc_init_ok ? "ok" : "fail");
 
-    /* 2.13) 裁判系统(USART1 115200,PA9/PA10)—— 数据同时给 cmd 和 robot */
+    /* 2.13) 裁判系统(USART1 115200,PA9/PA10)—— ★ 接收机只接在**上板**,
+            下板不初始化(它的裁判数据由 485 的 Reserved 字节拿到功率上限) */
     minipc_init_ok = MiniPC_Init();      /* miniPC:USB CDC(USB 本身由 freertos 的 StartDefaultTask 初始化) */
+#if ROBOT_UPPER_ONLY
     referee_init_ok = Referee_Init(&huart1);
     Log_Printf(LOG_LEVEL_INFO, "referee: init %s (usart1 115200)", referee_init_ok ? "ok" : "fail");
+#else
+    referee_init_ok = false;             /* 下板没有裁判接收机 */
+    Log_Printf(LOG_LEVEL_INFO, "referee: on upper MCU only (skip on lower)");
+#endif
 
     /* 2.15) 调试台:按需上电就打开 5V(见 robot_def.h 的 POWER_5V_ON_AT_BOOT) */
 #if POWER_5V_ON_AT_BOOT
